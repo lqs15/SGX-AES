@@ -35,7 +35,6 @@
 #include <map>
 #include "../Enclave1/Enclave1_u.h"
 #include "../Enclave2/Enclave2_u.h"
-#include "../Enclave3/Enclave3_u.h"
 #include "sgx_eid.h"
 #include "sgx_urts.h"
 #define __STDC_FORMAT_MACROS
@@ -60,7 +59,6 @@ sgx_enclave_id_t e3_enclave_id = 0;
 
 #define ENCLAVE1_PATH "libenclave1.so"
 #define ENCLAVE2_PATH "libenclave2.so"
-#define ENCLAVE3_PATH "libenclave3.so"
 
 void waitForKeyPress()
 {
@@ -93,16 +91,6 @@ uint32_t load_enclaves()
 
     enclave_temp_no++;
     g_enclave_id_map.insert(std::pair<sgx_enclave_id_t, uint32_t>(e2_enclave_id, enclave_temp_no));
-
-    ret = sgx_create_enclave(ENCLAVE3_PATH, SGX_DEBUG_FLAG, &launch_token, &launch_token_updated, &e3_enclave_id, NULL);
-    if (ret != SGX_SUCCESS) {
-                return ret;
-    }
-
-    enclave_temp_no++;
-    g_enclave_id_map.insert(std::pair<sgx_enclave_id_t, uint32_t>(e3_enclave_id, enclave_temp_no));
-
-
 
     return SGX_SUCCESS;
 }
@@ -180,7 +168,6 @@ int _tmain(int argc, _TCHAR* argv[]){
     printf("Available Enclaves\n");
     printf("Enclave1 - EnclaveID %" PRIx64 "\n", e1_enclave_id);
     printf("Enclave2 - EnclaveID %" PRIx64 "\n", e2_enclave_id);
-    printf("Enclave3 - EnclaveID %" PRIx64 "\n", e3_enclave_id);
 
     const int KEY_DATA_LEN = 16;
     const int MAC_DATA_LEN = 16;
@@ -284,7 +271,6 @@ int _tmain(int argc, _TCHAR* argv[]){
 
     sgx_destroy_enclave(e1_enclave_id);
     sgx_destroy_enclave(e2_enclave_id);
-    sgx_destroy_enclave(e3_enclave_id);
 
     // waitForKeyPress();
     return 0;
