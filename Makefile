@@ -31,8 +31,8 @@
 
 ######## SGX SDK Settings ########
 
-SGX_SDK ?= /opt/intel/sgxsdk
-SGX_MODE ?= HW
+SGX_SDK ?= /home/fuzy/apps/sgxsdk
+SGX_MODE ?= SIM
 SGX_ARCH ?= x64
 SGX_DEBUG ?= 1
 

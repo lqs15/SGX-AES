@@ -45,15 +45,17 @@
 std::map<sgx_enclave_id_t, dh_session_t>g_src_session_info_map;
 
 static uint32_t e2_foo1_wrapper(ms_in_msg_exchange_t *ms, size_t param_lenth, char** resp_buffer, size_t* resp_length);
+static uint32_t e2_encrypt_wrapper(ms_in_msg_exchange_t *ms, size_t param_lenth, char** resp_buffer, size_t* resp_length);
 
 //Function pointer table containing the list of functions that the enclave exposes
 const struct {
     size_t num_funcs;
-    const void* table[1];
+    const void* table[2];
 } func_table = {
-    1,
+    2,
     {
         (const void*)e2_foo1_wrapper,
+        (const void*)e2_encrypt_wrapper,
     }
 };
 
@@ -335,5 +337,51 @@ static uint32_t e2_foo1_wrapper(ms_in_msg_exchange_t *ms,
     if(marshal_retval_and_output_parameters_e2_foo1(resp_buffer, resp_length, ret) != SUCCESS )
         return MALLOC_ERROR; //can set resp buffer to null here
 
+    return SUCCESS;
+}
+
+//Function which is executed on request from the source enclave
+static uint32_t e2_encrypt_wrapper(ms_in_msg_exchange_t *ms,
+                    size_t param_lenth,
+                    char** resp_buffer,
+                    size_t* resp_length)
+{
+    // print("test2-1");
+    UNUSED(param_lenth);
+
+    sgx_aes_gcm_128bit_key_t key;
+    uint8_t reserved[12];
+    uint32_t plaintext_len = ms->inparam_buff_len - sizeof(key) - sizeof(reserved);
+    // print_num(ms->inparam_buff_len);
+    // print_num(plaintext_len);
+    uint8_t *plaintext;
+    uint8_t *ciphertext;
+    uint8_t *iv;
+    plaintext = (uint8_t *)malloc(plaintext_len);
+    if(!ms || !resp_length)
+    {
+        return INVALID_PARAMETER_ERROR;
+    }
+    // print("test2-2");
+    if (unmarshal_input_parameters_e2_encrypt(key, 16, reserved, 12, plaintext, plaintext_len, ms) != SUCCESS)
+        return ATTESTATION_ERROR;
+    // print("test2-3");
+    const uint8_t* p_add = (const uint8_t*)(" ");
+    uint32_t add_len = 0;
+    sgx_status_t status;
+    uint8_t mac_data[SGX_SEAL_TAG_SIZE];
+    ciphertext = (uint8_t *)malloc(plaintext_len);
+    uint32_t ciphertext_len = plaintext_len;
+    // print("test2-4");
+    status = sgx_rijndael128GCM_encrypt(&key, (uint8_t*)plaintext, plaintext_len,
+            ciphertext,
+            reserved,
+            sizeof(reserved), p_add, add_len, 
+            &mac_data);
+    // print("test2-5");
+    // print_to_file("mid.txt", (char *)ciphertext);
+    if(marshal_retval_and_output_parameters_e2_encrypt(resp_buffer, resp_length, mac_data, SGX_SEAL_TAG_SIZE, ciphertext, ciphertext_len) != SUCCESS )
+        return MALLOC_ERROR; //can set resp buffer to null here
+    // print("test2-6");
     return SUCCESS;
 }

@@ -333,6 +333,7 @@ ATTESTATION_STATUS send_request_receive_response(sgx_enclave_id_t src_enclave_id
     req_message->session_id = session_info->session_id;
 
     //Prepare the request message with the encrypted payload
+
     status = sgx_rijndael128GCM_encrypt(&session_info->active.AEK, (uint8_t*)inp_buff, data2encrypt_length,
                 reinterpret_cast<uint8_t *>(&(req_message->message_aes_gcm_data.payload)),
                 reinterpret_cast<uint8_t *>(&(req_message->message_aes_gcm_data.reserved)),

@@ -50,3 +50,10 @@ modules.order
 Module.symvers
 Mkfile.old
 dkms.conf
+
+/.settings
+.cproject
+.project
+*.txt
+*_h.*
+*_t.*

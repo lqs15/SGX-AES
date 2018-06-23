@@ -39,6 +39,7 @@
 #include "sgx_thread.h"
 #include "sgx_dh.h"
 #include <map>
+#include "stdio.h"
 
 #define UNUSED(val) (void)(val)
 
@@ -73,6 +74,7 @@ uint32_t test_create_session(sgx_enclave_id_t src_enclave_id,
         g_src_session_info_map.insert(std::pair<sgx_enclave_id_t, dh_session_t>(dest_enclave_id, dest_session_info));
     }
     memset(&dest_session_info, 0, sizeof(dh_session_t));
+    // print("Create Session successful\n");
     return ke_status;
 }
 
@@ -140,6 +142,88 @@ uint32_t test_enclave_to_enclave_call(sgx_enclave_id_t src_enclave_id,
     SAFE_FREE(marshalled_inp_buff);
     SAFE_FREE(out_buff);
     SAFE_FREE(retval);
+    return SUCCESS;
+}
+
+//Makes use of the sample code function to do an enclave to enclave call (Test Vector)
+uint32_t test_call_encrypt(sgx_enclave_id_t src_enclave_id,
+                           sgx_enclave_id_t dest_enclave_id,
+                           const char* key,
+                           const char* plaintext,
+                           const uint32_t* plaintext_length,
+                           char* ciphertext,
+                           uint32_t* ciphertext_length)
+{
+    // print("test1");
+    ATTESTATION_STATUS ke_status = SUCCESS;
+    uint32_t target_fn_id, msg_type;
+    char* marshalled_inp_buff;
+    size_t marshalled_inp_buff_len;
+    char* out_buff;
+    size_t out_buff_len;
+    dh_session_t *dest_session_info;
+    size_t max_out_buff_size;
+    uint8_t iv[12];
+
+    target_fn_id = 1;
+    msg_type = ENCLAVE_TO_ENCLAVE_CALL;
+    max_out_buff_size = 1024;
+
+    memset(iv, 0, sizeof(iv));
+    // print("test2");
+    //Marshals the input parameters for calling function foo1 in Enclave2 into a input buffer
+    ke_status = marshal_input_parameters_e2_encrypt(target_fn_id, msg_type, 
+                                                   (const uint8_t *)key, 16, 
+                                                   iv, 12,
+                                                   (const uint8_t *)plaintext, *plaintext_length, 
+                                                   &marshalled_inp_buff, &marshalled_inp_buff_len);
+    
+    // print("test3");
+    if(ke_status != SUCCESS)
+    {
+        return ke_status;
+    }
+
+    //Search the map for the session information associated with the destination enclave id of Enclave2 passed in
+    std::map<sgx_enclave_id_t, dh_session_t>::iterator it = g_src_session_info_map.find(dest_enclave_id);
+    if(it != g_src_session_info_map.end())
+    {
+          dest_session_info = &it->second;
+    }
+    else
+    {
+        SAFE_FREE(marshalled_inp_buff);
+        return INVALID_SESSION;
+    }
+
+    // print("test4");
+    //Core Reference Code function
+    ke_status = send_request_receive_response(src_enclave_id, dest_enclave_id, dest_session_info, marshalled_inp_buff,
+                                            marshalled_inp_buff_len, max_out_buff_size, &out_buff, &out_buff_len);
+
+    
+    if(ke_status != SUCCESS)
+    {
+        SAFE_FREE(marshalled_inp_buff);
+        SAFE_FREE(out_buff);
+        return ke_status;
+    }
+
+    // print("test5");
+    //Un-marshal the return value and output parameters from foo1 of Enclave 2
+    ke_status = unmarshal_retval_and_output_parameters_e2_encrypt(out_buff, &ciphertext, ciphertext_length);
+    if(ke_status != SUCCESS)
+    {
+        SAFE_FREE(marshalled_inp_buff);
+        SAFE_FREE(out_buff);
+        return ke_status;
+    }
+    // print_to_file("mid2.txt",ciphertext);
+
+    // print("test6");
+    SAFE_FREE(marshalled_inp_buff);
+    SAFE_FREE(out_buff);
+    //SAFE_FREE(retval);
     return SUCCESS;
 }
 

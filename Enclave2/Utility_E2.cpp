@@ -33,6 +33,7 @@
 #include "EnclaveMessageExchange.h"
 #include "error_codes.h"
 #include "Utility_E2.h"
+#include "Enclave2_t.h"
 #include "stdlib.h"
 #include "string.h"
 
@@ -126,6 +127,81 @@ uint32_t marshal_retval_and_output_parameters_e2_foo1(char** resp_buffer, size_t
         SAFE_FREE(temp_buff);
         return MALLOC_ERROR;
     }
+    ms->retval_len = (uint32_t)retval_len;
+    ms->ret_outparam_buff_len = (uint32_t)ret_param_len;
+    memcpy(&ms->ret_outparam_buff, temp_buff, ret_param_len);
+    *resp_buffer = (char*)ms;
+    *resp_length = ms_len;
+    SAFE_FREE(temp_buff);
+    return SUCCESS;
+}
+
+
+uint32_t unmarshal_input_parameters_e2_encrypt(uint8_t* var1, uint32_t var1_len,
+                                               uint8_t* var2, uint32_t var2_len,
+                                               uint8_t* var3, uint32_t var3_len,
+                                               ms_in_msg_exchange_t* ms)
+{
+    char* buff;
+    size_t len;
+    // print("3-1");
+    // if (!var1) print("A failed!");
+    // if (!var2) print("B failed!");
+    // if (!var3) print("C failed!");
+    // if (!ms) print("ms failed!");
+    // print("3-1.1");
+    if (!var1 || !var2 || !var3 || !ms)
+        // print("failed!");
+        // if (!var1) print("A failed!");
+        // if (!var2) print("B failed!");
+        // if (!var3) print("C failed!");
+        // if (!ms) print("ms failed!");
+        return INVALID_PARAMETER_ERROR;
+    
+    // print("3-1.5");
+    buff = ms->inparam_buff;
+    len = ms->inparam_buff_len;
+    // print("3-2");
+    if(len != (var1_len + var2_len + var3_len))
+        return ATTESTATION_ERROR;
+
+    // print("3-3");
+    memcpy(var1, buff, var1_len);
+    memcpy(var2, buff + var1_len, var2_len);
+    memcpy(var2, buff + var1_len + var2_len, var3_len);
+
+    // print("3-4");
+    return SUCCESS;
+}
+
+uint32_t marshal_retval_and_output_parameters_e2_encrypt(char** resp_buffer, size_t* resp_length, 
+                                                         uint8_t* var1, uint32_t var1_len, 
+                                                         uint8_t* var2, uint32_t var2_len)
+{
+    ms_out_msg_exchange_t *ms;
+    size_t ret_param_len, ms_len;
+    char *temp_buff;
+    size_t retval_len;
+    if(!resp_length)
+        return INVALID_PARAMETER_ERROR;
+
+    retval_len = var1_len + var2_len;
+    ret_param_len = retval_len; //no out parameters
+    temp_buff = (char*)malloc(ret_param_len);
+    if(!temp_buff)
+        return MALLOC_ERROR;
+
+    memcpy(temp_buff, var1, var1_len); 
+    memcpy(temp_buff + var1_len, var2, var2_len);
+    ms_len = sizeof(ms_out_msg_exchange_t) + ret_param_len;
+    ms = (ms_out_msg_exchange_t *)malloc(ms_len);
+    if(!ms)
+    {
+        SAFE_FREE(temp_buff);
+        return MALLOC_ERROR;
+    }
+    // print_num(var1_len);
+    // print_num(var2_len);
     ms->retval_len = (uint32_t)retval_len;
     ms->ret_outparam_buff_len = (uint32_t)ret_param_len;
     memcpy(&ms->ret_outparam_buff, temp_buff, ret_param_len);

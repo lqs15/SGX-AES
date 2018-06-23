@@ -35,6 +35,7 @@
 #include "Utility_E1.h"
 #include "stdlib.h"
 #include "string.h"
+#include "Enclave1_t.h"
 
 uint32_t marshal_input_parameters_e2_foo1(uint32_t target_fn_id, uint32_t msg_type, uint32_t var1, uint32_t var2, char** marshalled_buff, size_t* marshalled_buff_len)
 {
@@ -79,6 +80,57 @@ uint32_t unmarshal_retval_and_output_parameters_e2_foo1(char* out_buff, char** r
         return MALLOC_ERROR;
 
     memcpy(*retval, ms->ret_outparam_buff, retval_len);
+    return SUCCESS;
+}
+
+uint32_t marshal_input_parameters_e2_encrypt(uint32_t target_fn_id, uint32_t msg_type, 
+                                             const uint8_t* var1, const uint32_t var1_len,
+                                             const uint8_t* var2, const uint32_t var2_len,
+                                             const uint8_t* var3, const uint32_t var3_len,
+                                             char** marshalled_buff, size_t* marshalled_buff_len)
+{
+    ms_in_msg_exchange_t *ms;
+    size_t param_len, ms_len;
+    char *temp_buff;
+        
+    param_len = var1_len+var2_len+var3_len;
+    temp_buff = (char*)malloc(param_len);
+    if(!temp_buff)
+        return MALLOC_ERROR;
+
+    memcpy(temp_buff,var1,var1_len);
+    memcpy(temp_buff+var1_len,var2,var2_len);
+    memcpy(temp_buff+var1_len+var2_len,var3,var3_len);
+    ms_len = sizeof(ms_in_msg_exchange_t) + param_len;
+    ms = (ms_in_msg_exchange_t *)malloc(ms_len);
+    if(!ms)
+    {
+        SAFE_FREE(temp_buff);
+        return MALLOC_ERROR;
+    }
+    ms->msg_type = msg_type;
+    ms->target_fn_id = target_fn_id;
+    ms->inparam_buff_len = (uint32_t)param_len;
+    memcpy(&ms->inparam_buff, temp_buff, param_len);
+    *marshalled_buff = (char*)ms;
+    *marshalled_buff_len = ms_len;
+    SAFE_FREE(temp_buff);
+    return SUCCESS;
+}
+
+uint32_t unmarshal_retval_and_output_parameters_e2_encrypt(char* out_buff, char** retval, uint32_t* retval_len)
+{
+    ms_out_msg_exchange_t *ms;
+    if(!out_buff)
+        return INVALID_PARAMETER_ERROR;
+    ms = (ms_out_msg_exchange_t *)out_buff;
+    // print_num(ms->retval_len);
+    *retval_len = ms->retval_len - 16;// delete mac_data
+    //*retval = (char*)malloc(*retval_len);
+    if(!*retval)
+        return MALLOC_ERROR;
+
+    memcpy(*retval, ms->ret_outparam_buff + 16, *retval_len);
     return SUCCESS;
 }
 

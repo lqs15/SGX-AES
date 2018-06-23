@@ -36,8 +36,19 @@ enclave {
     trusted{
             public uint32_t test_create_session(sgx_enclave_id_t src_enclave_id, sgx_enclave_id_t dest_enclave_id);
             public uint32_t test_enclave_to_enclave_call(sgx_enclave_id_t src_enclave_id, sgx_enclave_id_t dest_enclave_id);
+            public uint32_t test_call_encrypt(sgx_enclave_id_t src_enclave_id, sgx_enclave_id_t dest_enclave_id,
+                           [in, size=16] const char* key,
+                           [in, string] const char* plaintext,
+                           [in, size=4] const uint32_t* plaintext_length,
+                           [out, size=1024] char* ciphertext,
+                           [out, size=4] uint32_t* ciphertext_length);
             public uint32_t test_message_exchange(sgx_enclave_id_t src_enclave_id, sgx_enclave_id_t dest_enclave_id);
             public uint32_t test_close_session(sgx_enclave_id_t src_enclave_id, sgx_enclave_id_t dest_enclave_id);
+    };
+    untrusted{
+        void print_num(uint32_t id);
+        void print([in, string] const char* str);
+        void print_to_file([in, string]const char* file, [in, string]const char* str);
     };
 
 };

@@ -105,16 +105,29 @@ uint32_t load_enclaves()
     return SGX_SUCCESS;
 }
 
-int _tmain(int argc, _TCHAR* argv[])
-{
+void print(const char* str){
+    printf("%s\n", str);
+}
+
+void print_num(uint32_t id){
+    printf("%u\n", id);
+}
+
+void print_to_file(const char* file_path, const char* str){
+    FILE* file = fopen(file_path, "w");
+    fwrite(str,strlen(str),1,file);
+    fclose(file);
+    // printf("%u\n", id);
+}
+
+int _tmain(int argc, _TCHAR* argv[]){
     uint32_t ret_status;
     sgx_status_t status;
 
     UNUSED(argc);
     UNUSED(argv);
 
-    if(load_enclaves() != SGX_SUCCESS)
-    {
+    if(load_enclaves() != SGX_SUCCESS){
         printf("\nLoad Enclave Failure");
     }
 
@@ -122,8 +135,87 @@ int _tmain(int argc, _TCHAR* argv[])
     printf("\nEnclave1 - EnclaveID %" PRIx64, e1_enclave_id);
     printf("\nEnclave2 - EnclaveID %" PRIx64, e2_enclave_id);
     printf("\nEnclave3 - EnclaveID %" PRIx64, e3_enclave_id);
+
+    char key[16];
+    char *plaintext, *ciphertext;
+    uint32_t plaintext_len, ciphertext_len;
+
+    // Read key from key.txt.
+    FILE* key_file = fopen("./key.txt","r");
+    if (key_file == NULL){
+        printf("\nRead key file failed!");
+        return 1;
+    }
+    fread(key, 16, 1, key_file); key[16] = 0;
+    fclose(key_file);
+    printf("\nKey: %s", key);
+
+    // Read plaintext from plaintext.txt.
+    FILE* plain_file = fopen("./plaintext.txt","r");
+    if (plain_file == NULL){
+        printf("\nRead plaintext file failed!");
+        return 1;
+    }
+    fseek(plain_file, 0, SEEK_END);
+    plaintext_len = ftell(plain_file);
+    rewind(plain_file);
+    plaintext = (char *)malloc(sizeof(char) * (plaintext_len + 1));
+    fread(plaintext, plaintext_len, 1, plain_file);
+    printf("\nPlaintext: %s", plaintext);
+    fclose(plain_file);
+
+    ciphertext = (char *)malloc(sizeof(char) * (1024 + 1));
+    memset(ciphertext, 0, sizeof(ciphertext));
+    ciphertext_len = 0;
     
-    do
+    // Create session between Enclave1(Source) and Enclave2(Destination)
+    status = Enclave1_test_create_session(e1_enclave_id, &ret_status, e1_enclave_id, e2_enclave_id);
+    if (status!=SGX_SUCCESS){
+        printf("\nEnclave1_test_create_session Ecall failed: Error code is %x", status);
+        return 1;
+    }
+    else {
+        if(ret_status==0){
+            printf("\n\nSecure Channel Establishment between Source (E1) and Destination (E2) Enclaves successful !!!");
+        }
+        else{
+            printf("\nSession establishment and key exchange failure between Source (E1) and Destination (E2): Error code is %x", ret_status);
+            return 1;
+        }
+    }
+    
+    // printf("\nfinishA\n");
+    // Call Encrypt function of Enclave2
+    status = Enclave1_test_call_encrypt(e1_enclave_id, &ret_status, 
+                                        e1_enclave_id, e2_enclave_id, key, 
+                                        plaintext, &plaintext_len, ciphertext, &ciphertext_len);
+    if (status!=SGX_SUCCESS){
+        printf("\nEnclave1_test_enclave_to_enclave_call Ecall failed: Error code is %x", status);
+        return 1;
+    }
+    else{
+        if(ret_status==0){
+            printf("\n\nEnclave to Enclave Call between Source (E1) and Destination (E2) Enclaves successful !!!");
+        }
+        else{
+            printf("\n\nEnclave to Enclave Call failure between Source (E1) and Destination (E2): Error code is %x", ret_status);
+            return 1;
+        }
+    }
+    // print_to_file("mid3.txt", ciphertext);
+    // print("test");
+    // print_num(ciphertext_len);
+    FILE* cipher_file = fopen("./ciphertext.txt", "w");
+    if (cipher_file == NULL){
+        printf("\nRead plaintext file failed!");
+        return 1;
+    }
+    fwrite(ciphertext, ciphertext_len, 1, cipher_file);
+    fclose(cipher_file);
+    printf("\nEncrypt Successful!!!");
+    // Call Encrypt 
+    //
+    /*do
     {
         //Test Create session between Enclave1(Source) and Enclave2(Destination)
         status = Enclave1_test_create_session(e1_enclave_id, &ret_status, e1_enclave_id, e2_enclave_id);
@@ -438,7 +530,7 @@ int _tmain(int argc, _TCHAR* argv[])
 #pragma warning (push)
 #pragma warning (disable : 4127)    
     }while(0);
-#pragma warning (pop)
+#pragma warning (pop)*/
 
     sgx_destroy_enclave(e1_enclave_id);
     sgx_destroy_enclave(e2_enclave_id);
