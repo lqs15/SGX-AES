@@ -149,12 +149,13 @@ uint32_t test_enclave_to_enclave_call(sgx_enclave_id_t src_enclave_id,
 uint32_t test_call_encrypt(sgx_enclave_id_t src_enclave_id,
                            sgx_enclave_id_t dest_enclave_id,
                            const char* key,
+                           char* mac_data,
                            const char* plaintext,
                            const uint32_t* plaintext_length,
                            char* ciphertext,
-                           uint32_t* ciphertext_length)
+                           uint32_t* ciphertext_length,
+                           uint8_t is_encrypt)
 {
-    // print("test1");
     ATTESTATION_STATUS ke_status = SUCCESS;
     uint32_t target_fn_id, msg_type;
     char* marshalled_inp_buff;
@@ -170,15 +171,15 @@ uint32_t test_call_encrypt(sgx_enclave_id_t src_enclave_id,
     max_out_buff_size = 1024;
 
     memset(iv, 0, sizeof(iv));
-    // print("test2");
+
     //Marshals the input parameters for calling function foo1 in Enclave2 into a input buffer
-    ke_status = marshal_input_parameters_e2_encrypt(target_fn_id, msg_type, 
+    ke_status = marshal_input_parameters_e2_encrypt(is_encrypt, target_fn_id, msg_type, 
+                                                   (const uint8_t *)mac_data, 16,
                                                    (const uint8_t *)key, 16, 
                                                    iv, 12,
                                                    (const uint8_t *)plaintext, *plaintext_length, 
                                                    &marshalled_inp_buff, &marshalled_inp_buff_len);
     
-    // print("test3");
     if(ke_status != SUCCESS)
     {
         return ke_status;
@@ -196,7 +197,6 @@ uint32_t test_call_encrypt(sgx_enclave_id_t src_enclave_id,
         return INVALID_SESSION;
     }
 
-    // print("test4");
     //Core Reference Code function
     ke_status = send_request_receive_response(src_enclave_id, dest_enclave_id, dest_session_info, marshalled_inp_buff,
                                             marshalled_inp_buff_len, max_out_buff_size, &out_buff, &out_buff_len);
@@ -209,23 +209,22 @@ uint32_t test_call_encrypt(sgx_enclave_id_t src_enclave_id,
         return ke_status;
     }
 
-    // print("test5");
     //Un-marshal the return value and output parameters from foo1 of Enclave 2
-    ke_status = unmarshal_retval_and_output_parameters_e2_encrypt(out_buff, &ciphertext, ciphertext_length);
+    ke_status = unmarshal_retval_and_output_parameters_e2_encrypt(is_encrypt, out_buff, 
+                                                                  &mac_data,
+                                                                  &ciphertext, ciphertext_length);
+    print(ciphertext);
     if(ke_status != SUCCESS)
     {
         SAFE_FREE(marshalled_inp_buff);
         SAFE_FREE(out_buff);
         return ke_status;
     }
-    // print_to_file("mid2.txt",ciphertext);
-
-    // print("test6");
     SAFE_FREE(marshalled_inp_buff);
     SAFE_FREE(out_buff);
-    //SAFE_FREE(retval);
     return SUCCESS;
 }
+
 
 //Makes use of the sample code function to do a generic secret message exchange (Test Vector)
 uint32_t test_message_exchange(sgx_enclave_id_t src_enclave_id,

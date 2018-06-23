@@ -137,7 +137,9 @@ uint32_t marshal_retval_and_output_parameters_e2_foo1(char** resp_buffer, size_t
 }
 
 
-uint32_t unmarshal_input_parameters_e2_encrypt(uint8_t* var1, uint32_t var1_len,
+uint32_t unmarshal_input_parameters_e2_encrypt(uint8_t* is_encrypt, 
+                                               uint8_t* var0, uint32_t var0_len,
+                                               uint8_t* var1, uint32_t var1_len,
                                                uint8_t* var2, uint32_t var2_len,
                                                uint8_t* var3, uint32_t var3_len,
                                                ms_in_msg_exchange_t* ms)
@@ -150,7 +152,7 @@ uint32_t unmarshal_input_parameters_e2_encrypt(uint8_t* var1, uint32_t var1_len,
     // if (!var3) print("C failed!");
     // if (!ms) print("ms failed!");
     // print("3-1.1");
-    if (!var1 || !var2 || !var3 || !ms)
+    if (!is_encrypt || !var1 || !var2 || !var3 || !ms)
         // print("failed!");
         // if (!var1) print("A failed!");
         // if (!var2) print("B failed!");
@@ -162,21 +164,30 @@ uint32_t unmarshal_input_parameters_e2_encrypt(uint8_t* var1, uint32_t var1_len,
     buff = ms->inparam_buff;
     len = ms->inparam_buff_len;
     // print("3-2");
-    if(len != (var1_len + var2_len + var3_len))
+    if(len != (var1_len + var2_len + var3_len + sizeof(*is_encrypt)))
         return ATTESTATION_ERROR;
 
     // print("3-3");
-    memcpy(var1, buff, var1_len);
-    memcpy(var2, buff + var1_len, var2_len);
-    memcpy(var2, buff + var1_len + var2_len, var3_len);
+    memcpy(is_encrypt, buff, sizeof(*is_encrypt));
+    if (*is_encrypt){
+        memcpy(var1, buff + sizeof(*is_encrypt), var1_len);
+        memcpy(var2, buff + sizeof(*is_encrypt) + var1_len, var2_len);
+        memcpy(var3, buff + sizeof(*is_encrypt) + var1_len + var2_len, var3_len);
+    }else{
+        memcpy(var0, buff + sizeof(*is_encrypt), var0_len);
+        memcpy(var1, buff + sizeof(*is_encrypt) + var0_len, var1_len);
+        memcpy(var2, buff + sizeof(*is_encrypt) + var0_len + var1_len, var2_len);
+        print_num(sizeof(*is_encrypt) + var0_len + var1_len + var2_len);
+        memcpy(var3, buff + sizeof(*is_encrypt) + var0_len + var1_len + var2_len, var3_len - var0_len);
+    }
 
     // print("3-4");
     return SUCCESS;
 }
 
-uint32_t marshal_retval_and_output_parameters_e2_encrypt(char** resp_buffer, size_t* resp_length, 
-                                                         uint8_t* var1, uint32_t var1_len, 
-                                                         uint8_t* var2, uint32_t var2_len)
+uint32_t marshal_retval_and_output_parameters_e2_encrypt(uint8_t is_encrypt, char** resp_buffer, size_t* resp_length, 
+                                                         uint8_t* var1, uint32_t var1_len,  // mac_data
+                                                         uint8_t* var2, uint32_t var2_len)  // ciphertext
 {
     ms_out_msg_exchange_t *ms;
     size_t ret_param_len, ms_len;
@@ -185,14 +196,24 @@ uint32_t marshal_retval_and_output_parameters_e2_encrypt(char** resp_buffer, siz
     if(!resp_length)
         return INVALID_PARAMETER_ERROR;
 
-    retval_len = var1_len + var2_len;
+    if (is_encrypt){
+        retval_len = var1_len + var2_len;
+    }else{
+        retval_len = var2_len;
+    }
+    
     ret_param_len = retval_len; //no out parameters
     temp_buff = (char*)malloc(ret_param_len);
     if(!temp_buff)
         return MALLOC_ERROR;
 
-    memcpy(temp_buff, var1, var1_len); 
-    memcpy(temp_buff + var1_len, var2, var2_len);
+    if (is_encrypt){
+        memcpy(temp_buff, var1, var1_len); 
+        memcpy(temp_buff + var1_len, var2, var2_len);
+    }else{
+        memcpy(temp_buff, var2, var2_len); 
+    }
+    
     ms_len = sizeof(ms_out_msg_exchange_t) + ret_param_len;
     ms = (ms_out_msg_exchange_t *)malloc(ms_len);
     if(!ms)

@@ -83,24 +83,39 @@ uint32_t unmarshal_retval_and_output_parameters_e2_foo1(char* out_buff, char** r
     return SUCCESS;
 }
 
-uint32_t marshal_input_parameters_e2_encrypt(uint32_t target_fn_id, uint32_t msg_type, 
-                                             const uint8_t* var1, const uint32_t var1_len,
-                                             const uint8_t* var2, const uint32_t var2_len,
-                                             const uint8_t* var3, const uint32_t var3_len,
+uint32_t marshal_input_parameters_e2_encrypt(const uint8_t is_encrypt, uint32_t target_fn_id, uint32_t msg_type, 
+                                             const uint8_t* var0, const uint32_t var0_len, //mac_data
+                                             const uint8_t* var1, const uint32_t var1_len, //key
+                                             const uint8_t* var2, const uint32_t var2_len, //iv
+                                             const uint8_t* var3, const uint32_t var3_len, //data
                                              char** marshalled_buff, size_t* marshalled_buff_len)
 {
     ms_in_msg_exchange_t *ms;
     size_t param_len, ms_len;
     char *temp_buff;
-        
-    param_len = var1_len+var2_len+var3_len;
+    
+    if (is_encrypt){
+        param_len = sizeof(is_encrypt) + var1_len + var2_len + var3_len;
+    }else{
+        param_len = sizeof(is_encrypt) + var0_len + var1_len + var2_len + var3_len; // send mac_data if is in decryption mode
+    }
+
     temp_buff = (char*)malloc(param_len);
     if(!temp_buff)
         return MALLOC_ERROR;
 
-    memcpy(temp_buff,var1,var1_len);
-    memcpy(temp_buff+var1_len,var2,var2_len);
-    memcpy(temp_buff+var1_len+var2_len,var3,var3_len);
+    if (is_encrypt){
+        memcpy(temp_buff,&is_encrypt,sizeof(is_encrypt));
+        memcpy(temp_buff+sizeof(is_encrypt),var1,var1_len);
+        memcpy(temp_buff+sizeof(is_encrypt)+var1_len,var2,var2_len);
+        memcpy(temp_buff+sizeof(is_encrypt)+var1_len+var2_len,var3,var3_len);
+    }else{
+        memcpy(temp_buff,&is_encrypt,sizeof(is_encrypt));
+        memcpy(temp_buff+sizeof(is_encrypt),var0,var0_len);
+        memcpy(temp_buff+sizeof(is_encrypt)+var0_len,var1,var1_len);
+        memcpy(temp_buff+sizeof(is_encrypt)+var0_len+var1_len,var2,var2_len);
+        memcpy(temp_buff+sizeof(is_encrypt)+var0_len+var1_len+var2_len,var3,var3_len);
+    }
     ms_len = sizeof(ms_in_msg_exchange_t) + param_len;
     ms = (ms_in_msg_exchange_t *)malloc(ms_len);
     if(!ms)
@@ -118,19 +133,25 @@ uint32_t marshal_input_parameters_e2_encrypt(uint32_t target_fn_id, uint32_t msg
     return SUCCESS;
 }
 
-uint32_t unmarshal_retval_and_output_parameters_e2_encrypt(char* out_buff, char** retval, uint32_t* retval_len)
+uint32_t unmarshal_retval_and_output_parameters_e2_encrypt(const uint8_t is_encrypt, char* out_buff, 
+                                                           char** mac_data, char** retval, uint32_t* retval_len)
 {
     ms_out_msg_exchange_t *ms;
     if(!out_buff)
         return INVALID_PARAMETER_ERROR;
     ms = (ms_out_msg_exchange_t *)out_buff;
     // print_num(ms->retval_len);
-    *retval_len = ms->retval_len - 16;// delete mac_data
     //*retval = (char*)malloc(*retval_len);
     if(!*retval)
         return MALLOC_ERROR;
-
-    memcpy(*retval, ms->ret_outparam_buff + 16, *retval_len);
+    if (is_encrypt){
+        *retval_len = ms->retval_len - 16;// delete mac_data
+        memcpy(*mac_data, ms->ret_outparam_buff, 16);
+        memcpy(*retval, ms->ret_outparam_buff + 16, *retval_len);
+    }else{
+        *retval_len = ms->retval_len;
+        memcpy(*retval, ms->ret_outparam_buff, *retval_len);
+    }
     return SUCCESS;
 }
 

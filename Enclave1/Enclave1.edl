@@ -38,10 +38,12 @@ enclave {
             public uint32_t test_enclave_to_enclave_call(sgx_enclave_id_t src_enclave_id, sgx_enclave_id_t dest_enclave_id);
             public uint32_t test_call_encrypt(sgx_enclave_id_t src_enclave_id, sgx_enclave_id_t dest_enclave_id,
                            [in, size=16] const char* key,
+                           [in, out, size=16] char* mac_data,
                            [in, string] const char* plaintext,
                            [in, size=4] const uint32_t* plaintext_length,
                            [out, size=1024] char* ciphertext,
-                           [out, size=4] uint32_t* ciphertext_length);
+                           [out, size=4] uint32_t* ciphertext_length,
+                           uint8_t is_encrypt);
             public uint32_t test_message_exchange(sgx_enclave_id_t src_enclave_id, sgx_enclave_id_t dest_enclave_id);
             public uint32_t test_close_session(sgx_enclave_id_t src_enclave_id, sgx_enclave_id_t dest_enclave_id);
     };

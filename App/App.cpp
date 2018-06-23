@@ -136,7 +136,9 @@ int _tmain(int argc, _TCHAR* argv[]){
     printf("\nEnclave2 - EnclaveID %" PRIx64, e2_enclave_id);
     printf("\nEnclave3 - EnclaveID %" PRIx64, e3_enclave_id);
 
-    char key[16];
+    const int KEY_DATA_LEN = 16;
+    const int MAC_DATA_LEN = 16;
+    char key[KEY_DATA_LEN], mac_data[MAC_DATA_LEN];
     char *plaintext, *ciphertext;
     uint32_t plaintext_len, ciphertext_len;
 
@@ -146,12 +148,12 @@ int _tmain(int argc, _TCHAR* argv[]){
         printf("\nRead key file failed!");
         return 1;
     }
-    fread(key, 16, 1, key_file); key[16] = 0;
+    fread(key, KEY_DATA_LEN, 1, key_file); key[KEY_DATA_LEN] = 0;
     fclose(key_file);
     printf("\nKey: %s", key);
 
     // Read plaintext from plaintext.txt.
-    FILE* plain_file = fopen("./plaintext.txt","r");
+    FILE* plain_file = fopen("./ciphertext.txt","r");
     if (plain_file == NULL){
         printf("\nRead plaintext file failed!");
         return 1;
@@ -163,11 +165,23 @@ int _tmain(int argc, _TCHAR* argv[]){
     fread(plaintext, plaintext_len, 1, plain_file);
     printf("\nPlaintext: %s", plaintext);
     fclose(plain_file);
-
+    
+    //initial ciphertext
     ciphertext = (char *)malloc(sizeof(char) * (1024 + 1));
     memset(ciphertext, 0, sizeof(ciphertext));
     ciphertext_len = 0;
-    
+
+    // Read mac_data from mac.txt.
+    FILE* mac_file = fopen("./mac.txt","r");
+    if (mac_file == NULL){
+        printf("\nRead mac file failed!");
+        memset(mac_data, 0, sizeof(mac_data));
+    }else{
+        fread(mac_data, MAC_DATA_LEN, 1, mac_file); mac_data[MAC_DATA_LEN] = 0;
+        fclose(mac_file);
+        printf("\nMac: %s", mac_data);
+    }
+
     // Create session between Enclave1(Source) and Enclave2(Destination)
     status = Enclave1_test_create_session(e1_enclave_id, &ret_status, e1_enclave_id, e2_enclave_id);
     if (status!=SGX_SUCCESS){
@@ -187,8 +201,8 @@ int _tmain(int argc, _TCHAR* argv[]){
     // printf("\nfinishA\n");
     // Call Encrypt function of Enclave2
     status = Enclave1_test_call_encrypt(e1_enclave_id, &ret_status, 
-                                        e1_enclave_id, e2_enclave_id, key, 
-                                        plaintext, &plaintext_len, ciphertext, &ciphertext_len);
+                                        e1_enclave_id, e2_enclave_id, key, mac_data,
+                                        plaintext, &plaintext_len, ciphertext, &ciphertext_len, 0);
     if (status!=SGX_SUCCESS){
         printf("\nEnclave1_test_enclave_to_enclave_call Ecall failed: Error code is %x", status);
         return 1;
@@ -205,14 +219,29 @@ int _tmain(int argc, _TCHAR* argv[]){
     // print_to_file("mid3.txt", ciphertext);
     // print("test");
     // print_num(ciphertext_len);
-    FILE* cipher_file = fopen("./ciphertext.txt", "w");
+
+    // write ciphertext to file
+    print(ciphertext);
+    FILE* cipher_file = fopen("./plain.txt", "w");
     if (cipher_file == NULL){
-        printf("\nRead plaintext file failed!");
+        printf("\nOpen plaintext file failed!");
         return 1;
     }
     fwrite(ciphertext, ciphertext_len, 1, cipher_file);
     fclose(cipher_file);
+    
+
+    // write mac_data to file
+    FILE* mac_out_file = fopen("./mac.txt", "w");
+    if (mac_out_file == NULL){
+        printf("\nOpen plaintext file failed!");
+        return 1;
+    }
+    fwrite(mac_data, MAC_DATA_LEN, 1, mac_out_file);
+    fclose(mac_out_file);
+
     printf("\nEncrypt Successful!!!");
+
     // Call Encrypt 
     //
     /*do

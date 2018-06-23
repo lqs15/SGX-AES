@@ -54,6 +54,8 @@ dkms.conf
 /.settings
 .cproject
 .project
+.config_*
 *.txt
-*_h.*
+*_u.*
 *_t.*
+app

@@ -350,37 +350,72 @@ static uint32_t e2_encrypt_wrapper(ms_in_msg_exchange_t *ms,
     UNUSED(param_lenth);
 
     sgx_aes_gcm_128bit_key_t key;
+    uint8_t is_encrypt = 0;
     uint8_t reserved[12];
-    uint32_t plaintext_len = ms->inparam_buff_len - sizeof(key) - sizeof(reserved);
+    uint32_t plaintext_len = ms->inparam_buff_len - sizeof(key) - sizeof(reserved) - sizeof(is_encrypt);
     // print_num(ms->inparam_buff_len);
     // print_num(plaintext_len);
     uint8_t *plaintext;
     uint8_t *ciphertext;
     uint8_t *iv;
+    uint8_t mac_data[16];
     plaintext = (uint8_t *)malloc(plaintext_len);
     if(!ms || !resp_length)
     {
         return INVALID_PARAMETER_ERROR;
     }
     // print("test2-2");
-    if (unmarshal_input_parameters_e2_encrypt(key, 16, reserved, 12, plaintext, plaintext_len, ms) != SUCCESS)
+    if (unmarshal_input_parameters_e2_encrypt(&is_encrypt, 
+                                                mac_data, 16,
+                                                key, 16, 
+                                                reserved, 12, 
+                                                plaintext, plaintext_len, ms) != SUCCESS)
         return ATTESTATION_ERROR;
     // print("test2-3");
+    // if (is_encrypt) print("is encrypt");
+    // else print("is not encrypt");
     const uint8_t* p_add = (const uint8_t*)(" ");
     uint32_t add_len = 0;
     sgx_status_t status;
-    uint8_t mac_data[SGX_SEAL_TAG_SIZE];
     ciphertext = (uint8_t *)malloc(plaintext_len);
     uint32_t ciphertext_len = plaintext_len;
     // print("test2-4");
-    status = sgx_rijndael128GCM_encrypt(&key, (uint8_t*)plaintext, plaintext_len,
-            ciphertext,
-            reserved,
-            sizeof(reserved), p_add, add_len, 
-            &mac_data);
+
+    if (is_encrypt){
+        status = sgx_rijndael128GCM_encrypt(&key, (uint8_t*)plaintext, plaintext_len,
+                ciphertext,
+                reserved,
+                sizeof(reserved), p_add, add_len, 
+                &mac_data);
+    }
+    else{
+        plaintext_len -= 16;
+        print("\nnew test\n");
+        print((char *)plaintext);
+        print("\nnew test len\n");
+        print_num(plaintext_len);
+        status = sgx_rijndael128GCM_decrypt(&key, (uint8_t*)plaintext, plaintext_len,
+                ciphertext,
+                reserved,
+                sizeof(reserved), p_add, add_len, 
+                &mac_data);
+        if (status == SGX_ERROR_INVALID_PARAMETER){
+            print("SGX_ERROR_INVALID_PARAMETER");
+            return ATTESTATION_ERROR;
+        }
+        if (status == SGX_ERROR_MAC_MISMATCH){
+            print("SGX_ERROR_MAC_MISMATCH");
+            return ATTESTATION_ERROR;
+        }
+        // print("ciphertext: ");
+        // print((char *)ciphertext);
+    }
+
     // print("test2-5");
     // print_to_file("mid.txt", (char *)ciphertext);
-    if(marshal_retval_and_output_parameters_e2_encrypt(resp_buffer, resp_length, mac_data, SGX_SEAL_TAG_SIZE, ciphertext, ciphertext_len) != SUCCESS )
+    if(marshal_retval_and_output_parameters_e2_encrypt(is_encrypt, resp_buffer, resp_length, 
+                                                       mac_data, SGX_SEAL_TAG_SIZE, 
+                                                       ciphertext, ciphertext_len) != SUCCESS )
         return MALLOC_ERROR; //can set resp buffer to null here
     // print("test2-6");
     return SUCCESS;
