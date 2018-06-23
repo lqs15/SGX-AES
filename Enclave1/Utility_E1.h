@@ -59,13 +59,13 @@ uint32_t marshal_message_exchange_request(uint32_t target_fn_id, uint32_t msg_ty
 uint32_t umarshal_message_exchange_request(uint32_t* inp_secret_data, ms_in_msg_exchange_t* ms);
 uint32_t marshal_message_exchange_response(char** resp_buffer, size_t* resp_length, uint32_t secret_response);
 uint32_t umarshal_message_exchange_response(char* out_buff, char** secret_response);
-uint32_t marshal_input_parameters_e2_encrypt(const uint8_t is_encrypt, uint32_t target_fn_id, uint32_t msg_type, 
+uint32_t marshal_input_parameters_e2_aes(const uint8_t is_encrypt, uint32_t target_fn_id, uint32_t msg_type, 
                                              const uint8_t* var0, const uint32_t var0_len, //mac_data
                                              const uint8_t* var1, const uint32_t var1_len, //key
                                              const uint8_t* var2, const uint32_t var2_len, //iv
                                              const uint8_t* var3, const uint32_t var3_len, //data
                                              char** marshalled_buff, size_t* marshalled_buff_len);
-uint32_t unmarshal_retval_and_output_parameters_e2_encrypt(const uint8_t is_encrypt, char* out_buff, 
+uint32_t unmarshal_retval_and_output_parameters_e2_aes(const uint8_t is_encrypt, char* out_buff, 
                                                            char** mac_data, char** retval, uint32_t* retval_len);
 
 #ifdef __cplusplus

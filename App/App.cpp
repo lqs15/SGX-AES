@@ -40,6 +40,8 @@
 #include "sgx_urts.h"
 #define __STDC_FORMAT_MACROS
 #include <inttypes.h>
+#include <getopt.h>
+#include <string.h>
 
 
 #define UNUSED(val) (void)(val)
@@ -117,24 +119,68 @@ void print_to_file(const char* file_path, const char* str){
     FILE* file = fopen(file_path, "w");
     fwrite(str,strlen(str),1,file);
     fclose(file);
-    // printf("%u\n", id);
 }
 
+struct globalArgs_t{
+    uint8_t is_encrypt;
+    char *key_path;
+    char *mac_path;
+    char *data_in_path;
+    char *data_out_path;
+} globalArgs;
+
+static const char *optString = "edk:m:i:o:";
+
 int _tmain(int argc, _TCHAR* argv[]){
+
+    int opt = 0;
+
+    globalArgs.is_encrypt = 1;
+    globalArgs.key_path = "key.txt";
+    globalArgs.mac_path = "mac.txt";
+    globalArgs.data_in_path = "plain.txt";
+    globalArgs.data_out_path = "cipher.txt";
+
+    opt = getopt(argc, argv, optString);
+    while (opt!=-1){
+        switch(opt){
+            case 'e':
+                globalArgs.is_encrypt = 1;
+                break;
+            case 'd':
+                globalArgs.is_encrypt = 0;
+                break;
+            case 'k':
+                globalArgs.key_path = (char *)optarg;
+                break;
+            case 'm':
+                globalArgs.mac_path = (char *)optarg;
+                break;            
+            case 'i':
+                globalArgs.data_in_path = (char *)optarg;
+                break;            
+            case 'o':
+                globalArgs.data_out_path = (char *)optarg;
+                break;
+            default:
+                break;
+        }
+        opt = getopt(argc, argv, optString);
+    }
+
     uint32_t ret_status;
     sgx_status_t status;
 
-    UNUSED(argc);
-    UNUSED(argv);
+    uint8_t is_encrypt;
 
     if(load_enclaves() != SGX_SUCCESS){
-        printf("\nLoad Enclave Failure");
+        printf("Load Enclave Failure\n");
     }
 
-    printf("\nAvailable Enclaves");
-    printf("\nEnclave1 - EnclaveID %" PRIx64, e1_enclave_id);
-    printf("\nEnclave2 - EnclaveID %" PRIx64, e2_enclave_id);
-    printf("\nEnclave3 - EnclaveID %" PRIx64, e3_enclave_id);
+    printf("Available Enclaves\n");
+    printf("Enclave1 - EnclaveID %" PRIx64 "\n", e1_enclave_id);
+    printf("Enclave2 - EnclaveID %" PRIx64 "\n", e2_enclave_id);
+    printf("Enclave3 - EnclaveID %" PRIx64 "\n", e3_enclave_id);
 
     const int KEY_DATA_LEN = 16;
     const int MAC_DATA_LEN = 16;
@@ -143,19 +189,18 @@ int _tmain(int argc, _TCHAR* argv[]){
     uint32_t plaintext_len, ciphertext_len;
 
     // Read key from key.txt.
-    FILE* key_file = fopen("./key.txt","r");
+    FILE* key_file = fopen(globalArgs.key_path,"r");
     if (key_file == NULL){
-        printf("\nRead key file failed!");
+        printf("Read key file failed!\n");
         return 1;
     }
     fread(key, KEY_DATA_LEN, 1, key_file); key[KEY_DATA_LEN] = 0;
     fclose(key_file);
-    printf("\nKey: %s", key);
 
     // Read plaintext from plaintext.txt.
-    FILE* plain_file = fopen("./ciphertext.txt","r");
+    FILE* plain_file = fopen(globalArgs.data_in_path,"r");
     if (plain_file == NULL){
-        printf("\nRead plaintext file failed!");
+        printf("Read plaintext file failed!\n");
         return 1;
     }
     fseek(plain_file, 0, SEEK_END);
@@ -163,7 +208,6 @@ int _tmain(int argc, _TCHAR* argv[]){
     rewind(plain_file);
     plaintext = (char *)malloc(sizeof(char) * (plaintext_len + 1));
     fread(plaintext, plaintext_len, 1, plain_file);
-    printf("\nPlaintext: %s", plaintext);
     fclose(plain_file);
     
     //initial ciphertext
@@ -172,400 +216,76 @@ int _tmain(int argc, _TCHAR* argv[]){
     ciphertext_len = 0;
 
     // Read mac_data from mac.txt.
-    FILE* mac_file = fopen("./mac.txt","r");
-    if (mac_file == NULL){
-        printf("\nRead mac file failed!");
-        memset(mac_data, 0, sizeof(mac_data));
-    }else{
+    memset(mac_data, 0, sizeof(mac_data));
+    if (globalArgs.is_encrypt == 0){
+        FILE* mac_file = fopen(globalArgs.mac_path,"r");
+        if (mac_file == NULL){
+            printf("Read mac file failed!\n");
+            return 1;
+        }
         fread(mac_data, MAC_DATA_LEN, 1, mac_file); mac_data[MAC_DATA_LEN] = 0;
         fclose(mac_file);
-        printf("\nMac: %s", mac_data);
     }
+    
+    
 
     // Create session between Enclave1(Source) and Enclave2(Destination)
     status = Enclave1_test_create_session(e1_enclave_id, &ret_status, e1_enclave_id, e2_enclave_id);
     if (status!=SGX_SUCCESS){
-        printf("\nEnclave1_test_create_session Ecall failed: Error code is %x", status);
+        printf("Enclave1_test_create_session Ecall failed: Error code is %x\n", status);
         return 1;
     }
     else {
         if(ret_status==0){
-            printf("\n\nSecure Channel Establishment between Source (E1) and Destination (E2) Enclaves successful !!!");
+            printf("Secure Channel Establishment successful\n");
         }
         else{
-            printf("\nSession establishment and key exchange failure between Source (E1) and Destination (E2): Error code is %x", ret_status);
+            printf("Session establishment and key exchange failure between Source (E1) and Destination (E2): Error code is %x\n", ret_status);
             return 1;
         }
     }
     
     // printf("\nfinishA\n");
     // Call Encrypt function of Enclave2
-    status = Enclave1_test_call_encrypt(e1_enclave_id, &ret_status, 
+    status = Enclave1_test_call_aes(e1_enclave_id, &ret_status, 
                                         e1_enclave_id, e2_enclave_id, key, mac_data,
-                                        plaintext, &plaintext_len, ciphertext, &ciphertext_len, 0);
+                                        plaintext, &plaintext_len, ciphertext, &ciphertext_len, globalArgs.is_encrypt);
     if (status!=SGX_SUCCESS){
-        printf("\nEnclave1_test_enclave_to_enclave_call Ecall failed: Error code is %x", status);
+        printf("Enclave1_test_enclave_to_enclave_call Ecall failed: Error code is %x\n", status);
         return 1;
     }
     else{
         if(ret_status==0){
-            printf("\n\nEnclave to Enclave Call between Source (E1) and Destination (E2) Enclaves successful !!!");
+            printf("Enclave call successful\n");
         }
         else{
-            printf("\n\nEnclave to Enclave Call failure between Source (E1) and Destination (E2): Error code is %x", ret_status);
+            printf("Enclave to Enclave Call failure between Source (E1) and Destination (E2): Error code is %x\n", ret_status);
             return 1;
         }
     }
-    // print_to_file("mid3.txt", ciphertext);
-    // print("test");
-    // print_num(ciphertext_len);
 
     // write ciphertext to file
-    print(ciphertext);
-    FILE* cipher_file = fopen("./plain.txt", "w");
+    FILE* cipher_file = fopen(globalArgs.data_out_path, "w");
     if (cipher_file == NULL){
-        printf("\nOpen plaintext file failed!");
+        printf("Open plaintext file failed!\n");
         return 1;
     }
     fwrite(ciphertext, ciphertext_len, 1, cipher_file);
     fclose(cipher_file);
-    
 
     // write mac_data to file
-    FILE* mac_out_file = fopen("./mac.txt", "w");
+    FILE* mac_out_file = fopen(globalArgs.mac_path, "w");
     if (mac_out_file == NULL){
-        printf("\nOpen plaintext file failed!");
+        printf("Open plaintext file failed!\n");
         return 1;
     }
     fwrite(mac_data, MAC_DATA_LEN, 1, mac_out_file);
     fclose(mac_out_file);
 
-    printf("\nEncrypt Successful!!!");
-
-    // Call Encrypt 
-    //
-    /*do
-    {
-        //Test Create session between Enclave1(Source) and Enclave2(Destination)
-        status = Enclave1_test_create_session(e1_enclave_id, &ret_status, e1_enclave_id, e2_enclave_id);
-        if (status!=SGX_SUCCESS)
-        {
-            printf("Enclave1_test_create_session Ecall failed: Error code is %x", status);
-            break;
-        }
-        else
-        {
-            if(ret_status==0)
-            {
-                printf("\n\nSecure Channel Establishment between Source (E1) and Destination (E2) Enclaves successful !!!");
-            }
-            else
-            {
-                printf("\nSession establishment and key exchange failure between Source (E1) and Destination (E2): Error code is %x", ret_status);
-                break;
-            }
-        }
-
-        //Test Enclave to Enclave call between Enclave1(Source) and Enclave2(Destination)
-        status = Enclave1_test_enclave_to_enclave_call(e1_enclave_id, &ret_status, e1_enclave_id, e2_enclave_id);
-        if (status!=SGX_SUCCESS)
-        {
-            printf("Enclave1_test_enclave_to_enclave_call Ecall failed: Error code is %x", status);
-            break;
-        }
-        else
-        {
-            if(ret_status==0)
-            {
-                printf("\n\nEnclave to Enclave Call between Source (E1) and Destination (E2) Enclaves successful !!!");
-            }
-            else
-            {
-                printf("\n\nEnclave to Enclave Call failure between Source (E1) and Destination (E2): Error code is %x", ret_status);
-                break;
-            }
-        }
-        //Test message exchange between Enclave1(Source) and Enclave2(Destination)
-        status = Enclave1_test_message_exchange(e1_enclave_id, &ret_status, e1_enclave_id, e2_enclave_id);
-        if (status!=SGX_SUCCESS)
-        {
-            printf("Enclave1_test_message_exchange Ecall failed: Error code is %x", status);
-            break;
-        }
-        else
-        {
-            if(ret_status==0)
-            {
-                printf("\n\nMessage Exchange between Source (E1) and Destination (E2) Enclaves successful !!!");
-            }
-            else
-            {
-                printf("\n\nMessage Exchange failure between Source (E1) and Destination (E2): Error code is %x", ret_status);
-                break;
-            }
-        }
-        //Test Create session between Enclave1(Source) and Enclave3(Destination)
-        status = Enclave1_test_create_session(e1_enclave_id, &ret_status, e1_enclave_id, e3_enclave_id);
-        if (status!=SGX_SUCCESS)
-        {
-            printf("Enclave1_test_create_session Ecall failed: Error code is %x", status);
-            break;
-        }
-        else
-        {
-            if(ret_status==0)
-            {
-                printf("\n\nSecure Channel Establishment between Source (E1) and Destination (E3) Enclaves successful !!!");
-            }
-            else
-            {
-                printf("\n\nSession establishment and key exchange failure between Source (E1) and Destination (E3): Error code is %x", ret_status);
-                break;
-            }
-        }
-        //Test Enclave to Enclave call between Enclave1(Source) and Enclave3(Destination)
-        status = Enclave1_test_enclave_to_enclave_call(e1_enclave_id, &ret_status, e1_enclave_id, e3_enclave_id);
-        if (status!=SGX_SUCCESS)
-        {
-            printf("Enclave1_test_enclave_to_enclave_call Ecall failed: Error code is %x", status);
-            break;
-        }
-        else
-        {
-            if(ret_status==0)
-            {
-                printf("\n\nEnclave to Enclave Call between Source (E1) and Destination (E3) Enclaves successful !!!");
-            }
-            else
-            {
-                printf("\n\nEnclave to Enclave Call failure between Source (E1) and Destination (E3): Error code is %x", ret_status);
-                break;
-            }
-        }
-        //Test message exchange between Enclave1(Source) and Enclave3(Destination)
-        status = Enclave1_test_message_exchange(e1_enclave_id, &ret_status, e1_enclave_id, e3_enclave_id);
-        if (status!=SGX_SUCCESS)
-        {
-            printf("Enclave1_test_message_exchange Ecall failed: Error code is %x", status);
-            break;
-        }
-        else
-        {
-            if(ret_status==0)
-            {
-                printf("\n\nMessage Exchange between Source (E1) and Destination (E3) Enclaves successful !!!");
-            }
-            else
-            {
-                printf("\n\nMessage Exchange failure between Source (E1) and Destination (E3): Error code is %x", ret_status);
-                break;
-            }
-        }
-
-        //Test Create session between Enclave2(Source) and Enclave3(Destination)
-        status = Enclave2_test_create_session(e2_enclave_id, &ret_status, e2_enclave_id, e3_enclave_id);
-        if (status!=SGX_SUCCESS)
-        {
-            printf("Enclave2_test_create_session Ecall failed: Error code is %x", status);
-            break;
-        }
-        else
-        {
-            if(ret_status==0)
-            {
-                printf("\n\nSecure Channel Establishment between Source (E2) and Destination (E3) Enclaves successful !!!");
-            }
-            else
-            {
-                printf("\n\nSession establishment and key exchange failure between Source (E2) and Destination (E3): Error code is %x", ret_status);
-                break;
-            }
-        }
-        //Test Enclave to Enclave call between Enclave2(Source) and Enclave3(Destination)
-        status = Enclave2_test_enclave_to_enclave_call(e2_enclave_id, &ret_status, e2_enclave_id, e3_enclave_id);
-        if (status!=SGX_SUCCESS)
-        {
-            printf("Enclave2_test_enclave_to_enclave_call Ecall failed: Error code is %x", status);
-            break;
-        }
-        else
-        {
-            if(ret_status==0)
-            {
-                printf("\n\nEnclave to Enclave Call between Source (E2) and Destination (E3) Enclaves successful !!!");
-            }
-            else
-            {
-                printf("\n\nEnclave to Enclave Call failure between Source (E2) and Destination (E3): Error code is %x", ret_status);
-                break;
-            }
-        }
-        //Test message exchange between Enclave2(Source) and Enclave3(Destination)
-        status = Enclave2_test_message_exchange(e2_enclave_id, &ret_status, e2_enclave_id, e3_enclave_id);
-        if (status!=SGX_SUCCESS)
-        {
-            printf("Enclave2_test_message_exchange Ecall failed: Error code is %x", status);
-            break;
-        }
-        else
-        {
-            if(ret_status==0)
-            {
-                printf("\n\nMessage Exchange between Source (E2) and Destination (E3) Enclaves successful !!!");
-            }
-            else
-            {
-                printf("\n\nMessage Exchange failure between Source (E2) and Destination (E3): Error code is %x", ret_status);
-                break;
-            }
-        }
-    
-        //Test Create session between Enclave3(Source) and Enclave1(Destination)
-        status = Enclave3_test_create_session(e3_enclave_id, &ret_status, e3_enclave_id, e1_enclave_id);
-        if (status!=SGX_SUCCESS)
-        {
-            printf("Enclave3_test_create_session Ecall failed: Error code is %x", status);
-            break;
-        }
-        else
-        {
-            if(ret_status==0)
-            {
-                printf("\n\nSecure Channel Establishment between Source (E3) and Destination (E1) Enclaves successful !!!");
-            }
-            else
-            {
-                printf("\n\nSession establishment and key exchange failure between Source (E3) and Destination (E1): Error code is %x", ret_status);
-                break;
-            }
-        }
-        //Test Enclave to Enclave call between Enclave3(Source) and Enclave1(Destination)
-        status = Enclave3_test_enclave_to_enclave_call(e3_enclave_id, &ret_status, e3_enclave_id, e1_enclave_id);
-        if (status!=SGX_SUCCESS)
-        {
-            printf("Enclave3_test_enclave_to_enclave_call Ecall failed: Error code is %x", status);
-            break;
-        }
-        else
-        {
-            if(ret_status==0)
-            {
-                printf("\n\nEnclave to Enclave Call between Source (E3) and Destination (E1) Enclaves successful !!!");
-            }
-            else
-            {
-                printf("\n\nEnclave to Enclave Call failure between Source (E3) and Destination (E1): Error code is %x", ret_status);
-                break;
-            }
-        }
-        //Test message exchange between Enclave3(Source) and Enclave1(Destination)
-        status = Enclave3_test_message_exchange(e3_enclave_id, &ret_status, e3_enclave_id, e1_enclave_id);
-        if (status!=SGX_SUCCESS)
-        {
-            printf("Enclave3_test_message_exchange Ecall failed: Error code is %x", status);
-            break;
-        }
-        else
-        {
-            if(ret_status==0)
-            {
-                printf("\n\nMessage Exchange between Source (E3) and Destination (E1) Enclaves successful !!!");
-            }
-            else
-            {
-                printf("\n\nMessage Exchange failure between Source (E3) and Destination (E1): Error code is %x", ret_status);
-                break;
-            }
-        }
-
-
-        //Test Closing Session between Enclave1(Source) and Enclave2(Destination)
-        status = Enclave1_test_close_session(e1_enclave_id, &ret_status, e1_enclave_id, e2_enclave_id);
-        if (status!=SGX_SUCCESS)
-        {
-            printf("Enclave1_test_close_session Ecall failed: Error code is %x", status);
-            break;
-        }
-        else
-        {
-            if(ret_status==0)
-            {
-                printf("\n\nClose Session between Source (E1) and Destination (E2) Enclaves successful !!!");
-            }
-            else
-            {
-                printf("\n\nClose session failure between Source (E1) and Destination (E2): Error code is %x", ret_status);
-                break;
-            }
-        }
-        //Test Closing Session between Enclave1(Source) and Enclave3(Destination)
-        status = Enclave1_test_close_session(e1_enclave_id, &ret_status, e1_enclave_id, e3_enclave_id);
-        if (status!=SGX_SUCCESS)
-        {
-            printf("Enclave1_test_close_session Ecall failed: Error code is %x", status);
-            break;
-        }
-        else
-        {
-            if(ret_status==0)
-            {
-                printf("\n\nClose Session between Source (E1) and Destination (E3) Enclaves successful !!!");
-            }
-            else
-            {
-                printf("\n\nClose session failure between Source (E1) and Destination (E3): Error code is %x", ret_status);
-                break;
-            }
-        }
-        //Test Closing Session between Enclave2(Source) and Enclave3(Destination)
-        status = Enclave2_test_close_session(e2_enclave_id, &ret_status, e2_enclave_id, e3_enclave_id);
-        if (status!=SGX_SUCCESS)
-        {
-            printf("Enclave2_test_close_session Ecall failed: Error code is %x", status);
-            break;
-        }
-        else
-        {
-            if(ret_status==0)
-            {
-                printf("\n\nClose Session between Source (E2) and Destination (E3) Enclaves successful !!!");
-            }
-            else
-            {
-                printf("\n\nClose session failure between Source (E2) and Destination (E3): Error code is %x", ret_status);
-                break;
-            }
-        }
-        //Test Closing Session between Enclave3(Source) and Enclave1(Destination)
-        status = Enclave3_test_close_session(e3_enclave_id, &ret_status, e3_enclave_id, e1_enclave_id);
-        if (status!=SGX_SUCCESS)
-        {
-            printf("Enclave3_test_close_session Ecall failed: Error code is %x", status);
-            break;
-        }
-        else
-        {
-            if(ret_status==0)
-            {
-                printf("\n\nClose Session between Source (E3) and Destination (E1) Enclaves successful !!!");
-            }
-            else
-            {
-                printf("\n\nClose session failure between Source (E3) and Destination (E1): Error code is %x", ret_status);
-                break;
-            }
-        }
-
-#pragma warning (push)
-#pragma warning (disable : 4127)    
-    }while(0);
-#pragma warning (pop)*/
-
     sgx_destroy_enclave(e1_enclave_id);
     sgx_destroy_enclave(e2_enclave_id);
     sgx_destroy_enclave(e3_enclave_id);
 
-    waitForKeyPress();
-
+    // waitForKeyPress();
     return 0;
 }

@@ -83,7 +83,7 @@ uint32_t unmarshal_retval_and_output_parameters_e2_foo1(char* out_buff, char** r
     return SUCCESS;
 }
 
-uint32_t marshal_input_parameters_e2_encrypt(const uint8_t is_encrypt, uint32_t target_fn_id, uint32_t msg_type, 
+uint32_t marshal_input_parameters_e2_aes(const uint8_t is_encrypt, uint32_t target_fn_id, uint32_t msg_type, 
                                              const uint8_t* var0, const uint32_t var0_len, //mac_data
                                              const uint8_t* var1, const uint32_t var1_len, //key
                                              const uint8_t* var2, const uint32_t var2_len, //iv
@@ -133,17 +133,16 @@ uint32_t marshal_input_parameters_e2_encrypt(const uint8_t is_encrypt, uint32_t 
     return SUCCESS;
 }
 
-uint32_t unmarshal_retval_and_output_parameters_e2_encrypt(const uint8_t is_encrypt, char* out_buff, 
+uint32_t unmarshal_retval_and_output_parameters_e2_aes(const uint8_t is_encrypt, char* out_buff, 
                                                            char** mac_data, char** retval, uint32_t* retval_len)
 {
     ms_out_msg_exchange_t *ms;
     if(!out_buff)
         return INVALID_PARAMETER_ERROR;
     ms = (ms_out_msg_exchange_t *)out_buff;
-    // print_num(ms->retval_len);
-    //*retval = (char*)malloc(*retval_len);
     if(!*retval)
         return MALLOC_ERROR;
+
     if (is_encrypt){
         *retval_len = ms->retval_len - 16;// delete mac_data
         memcpy(*mac_data, ms->ret_outparam_buff, 16);
@@ -152,6 +151,7 @@ uint32_t unmarshal_retval_and_output_parameters_e2_encrypt(const uint8_t is_encr
         *retval_len = ms->retval_len;
         memcpy(*retval, ms->ret_outparam_buff, *retval_len);
     }
+
     return SUCCESS;
 }
 

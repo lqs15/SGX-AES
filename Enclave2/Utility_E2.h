@@ -51,13 +51,13 @@ uint32_t marshal_message_exchange_request(uint32_t target_fn_id, uint32_t msg_ty
 uint32_t umarshal_message_exchange_request(uint32_t* inp_secret_data, ms_in_msg_exchange_t* ms);
 uint32_t marshal_message_exchange_response(char** resp_buffer, size_t* resp_length, uint32_t secret_response);
 uint32_t umarshal_message_exchange_response(char* out_buff, char** secret_response);
-uint32_t unmarshal_input_parameters_e2_encrypt(uint8_t* is_encrypt, 
+uint32_t unmarshal_input_parameters_e2_aes(uint8_t* is_encrypt, 
                                                uint8_t* var0, uint32_t var0_len,
                                                uint8_t* var1, uint32_t var1_len,
                                                uint8_t* var2, uint32_t var2_len,
                                                uint8_t* var3, uint32_t var3_len,
                                                ms_in_msg_exchange_t* ms);
-uint32_t marshal_retval_and_output_parameters_e2_encrypt(uint8_t is_encrypt, char** resp_buffer, size_t* resp_length, 
+uint32_t marshal_retval_and_output_parameters_e2_aes(uint8_t is_encrypt, char** resp_buffer, size_t* resp_length, 
                                                          uint8_t* var1, uint32_t var1_len,  // mac_data
                                                          uint8_t* var2, uint32_t var2_len);  // ciphertext
 

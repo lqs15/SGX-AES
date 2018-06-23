@@ -146,7 +146,7 @@ uint32_t test_enclave_to_enclave_call(sgx_enclave_id_t src_enclave_id,
 }
 
 //Makes use of the sample code function to do an enclave to enclave call (Test Vector)
-uint32_t test_call_encrypt(sgx_enclave_id_t src_enclave_id,
+uint32_t test_call_aes(sgx_enclave_id_t src_enclave_id,
                            sgx_enclave_id_t dest_enclave_id,
                            const char* key,
                            char* mac_data,
@@ -169,11 +169,10 @@ uint32_t test_call_encrypt(sgx_enclave_id_t src_enclave_id,
     target_fn_id = 1;
     msg_type = ENCLAVE_TO_ENCLAVE_CALL;
     max_out_buff_size = 1024;
-
     memset(iv, 0, sizeof(iv));
 
     //Marshals the input parameters for calling function foo1 in Enclave2 into a input buffer
-    ke_status = marshal_input_parameters_e2_encrypt(is_encrypt, target_fn_id, msg_type, 
+    ke_status = marshal_input_parameters_e2_aes(is_encrypt, target_fn_id, msg_type, 
                                                    (const uint8_t *)mac_data, 16,
                                                    (const uint8_t *)key, 16, 
                                                    iv, 12,
@@ -210,10 +209,10 @@ uint32_t test_call_encrypt(sgx_enclave_id_t src_enclave_id,
     }
 
     //Un-marshal the return value and output parameters from foo1 of Enclave 2
-    ke_status = unmarshal_retval_and_output_parameters_e2_encrypt(is_encrypt, out_buff, 
+    ke_status = unmarshal_retval_and_output_parameters_e2_aes(is_encrypt, out_buff, 
                                                                   &mac_data,
                                                                   &ciphertext, ciphertext_length);
-    print(ciphertext);
+
     if(ke_status != SUCCESS)
     {
         SAFE_FREE(marshalled_inp_buff);

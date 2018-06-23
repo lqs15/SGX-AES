@@ -45,7 +45,7 @@
 std::map<sgx_enclave_id_t, dh_session_t>g_src_session_info_map;
 
 static uint32_t e2_foo1_wrapper(ms_in_msg_exchange_t *ms, size_t param_lenth, char** resp_buffer, size_t* resp_length);
-static uint32_t e2_encrypt_wrapper(ms_in_msg_exchange_t *ms, size_t param_lenth, char** resp_buffer, size_t* resp_length);
+static uint32_t e2_aes_wrapper(ms_in_msg_exchange_t *ms, size_t param_lenth, char** resp_buffer, size_t* resp_length);
 
 //Function pointer table containing the list of functions that the enclave exposes
 const struct {
@@ -55,7 +55,7 @@ const struct {
     2,
     {
         (const void*)e2_foo1_wrapper,
-        (const void*)e2_encrypt_wrapper,
+        (const void*)e2_aes_wrapper,
     }
 };
 
@@ -341,20 +341,18 @@ static uint32_t e2_foo1_wrapper(ms_in_msg_exchange_t *ms,
 }
 
 //Function which is executed on request from the source enclave
-static uint32_t e2_encrypt_wrapper(ms_in_msg_exchange_t *ms,
+static uint32_t e2_aes_wrapper(ms_in_msg_exchange_t *ms,
                     size_t param_lenth,
                     char** resp_buffer,
                     size_t* resp_length)
 {
-    // print("test2-1");
     UNUSED(param_lenth);
 
     sgx_aes_gcm_128bit_key_t key;
     uint8_t is_encrypt = 0;
     uint8_t reserved[12];
     uint32_t plaintext_len = ms->inparam_buff_len - sizeof(key) - sizeof(reserved) - sizeof(is_encrypt);
-    // print_num(ms->inparam_buff_len);
-    // print_num(plaintext_len);
+
     uint8_t *plaintext;
     uint8_t *ciphertext;
     uint8_t *iv;
@@ -364,22 +362,19 @@ static uint32_t e2_encrypt_wrapper(ms_in_msg_exchange_t *ms,
     {
         return INVALID_PARAMETER_ERROR;
     }
-    // print("test2-2");
-    if (unmarshal_input_parameters_e2_encrypt(&is_encrypt, 
+
+    if (unmarshal_input_parameters_e2_aes(&is_encrypt, 
                                                 mac_data, 16,
                                                 key, 16, 
                                                 reserved, 12, 
                                                 plaintext, plaintext_len, ms) != SUCCESS)
         return ATTESTATION_ERROR;
-    // print("test2-3");
-    // if (is_encrypt) print("is encrypt");
-    // else print("is not encrypt");
+
     const uint8_t* p_add = (const uint8_t*)(" ");
     uint32_t add_len = 0;
     sgx_status_t status;
     ciphertext = (uint8_t *)malloc(plaintext_len);
     uint32_t ciphertext_len = plaintext_len;
-    // print("test2-4");
 
     if (is_encrypt){
         status = sgx_rijndael128GCM_encrypt(&key, (uint8_t*)plaintext, plaintext_len,
@@ -390,10 +385,7 @@ static uint32_t e2_encrypt_wrapper(ms_in_msg_exchange_t *ms,
     }
     else{
         plaintext_len -= 16;
-        print("\nnew test\n");
-        print((char *)plaintext);
-        print("\nnew test len\n");
-        print_num(plaintext_len);
+        ciphertext_len = plaintext_len;
         status = sgx_rijndael128GCM_decrypt(&key, (uint8_t*)plaintext, plaintext_len,
                 ciphertext,
                 reserved,
@@ -403,20 +395,18 @@ static uint32_t e2_encrypt_wrapper(ms_in_msg_exchange_t *ms,
             print("SGX_ERROR_INVALID_PARAMETER");
             return ATTESTATION_ERROR;
         }
-        if (status == SGX_ERROR_MAC_MISMATCH){
+        else if (status == SGX_ERROR_MAC_MISMATCH){
             print("SGX_ERROR_MAC_MISMATCH");
             return ATTESTATION_ERROR;
         }
-        // print("ciphertext: ");
-        // print((char *)ciphertext);
+        else if (status != SGX_SUCCESS){
+            return ATTESTATION_ERROR;
+        }
     }
 
-    // print("test2-5");
-    // print_to_file("mid.txt", (char *)ciphertext);
-    if(marshal_retval_and_output_parameters_e2_encrypt(is_encrypt, resp_buffer, resp_length, 
+    if(marshal_retval_and_output_parameters_e2_aes(is_encrypt, resp_buffer, resp_length, 
                                                        mac_data, SGX_SEAL_TAG_SIZE, 
                                                        ciphertext, ciphertext_len) != SUCCESS )
         return MALLOC_ERROR; //can set resp buffer to null here
-    // print("test2-6");
     return SUCCESS;
 }
